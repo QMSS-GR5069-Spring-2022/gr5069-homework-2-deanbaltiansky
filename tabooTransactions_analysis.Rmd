@@ -1,0 +1,869 @@
+---
+title: "taboo transactions across studies"
+author: "Dean Baltiansky"
+date: "11/9/2021"
+output: pdf_document
+---
+# Setup
+
+```{r,include=FALSE}
+#load packages
+if(!require(lmerTest)) install.packages("lmerTest"); require(lmerTest)
+if(!require(lsr)) install.packages("lsr"); require(lsr)
+if(!require(psych)) install.packages("psych"); require(psych)
+if(!require(interactions)) install.packages("interactions"); require(interactions)
+if(!require(jtools)) install.packages("jtools"); require(jtools)
+if(!require(gridExtra)) install.packages("gridExtra"); require(gridExtra)
+if(!require(see)) install.packages("see"); require(see)
+if(!require(kableExtra)) install.packages("kableExtra"); require(kableExtra)
+if(!require(rstatix)) install.packages("rstatix"); require(rstatix)
+if(!require(apa)) install.packages("apa"); require(apa)
+if(!require(apaTables)) install.packages("apaTables"); require(apaTables)
+if(!require(papaja)) install.packages("papaja"); require(papaja)
+if(!require(tidyverse)) install.packages("tidyverse"); require(tidyverse)
+
+df_s1 <- read.csv("~/Google Drive/My Drive/taboo transactions/OSF materials/SPSP Poster 2022/data/df_s1.csv")
+
+df_s2 <- read.csv("~/Google Drive/My Drive/taboo transactions/OSF materials/SPSP Poster 2022/data/df_s2.csv")
+
+df_s3 <- read.csv("~/Google Drive/My Drive/taboo transactions/OSF materials/SPSP Poster 2022/data/df_s3.csv")
+
+df_s4 <- read.csv("~/Google Drive/My Drive/taboo transactions/OSF materials/SPSP Poster 2022/data/df_s4.csv")
+
+df_s5 <- read.csv("~/Google Drive/My Drive/taboo transactions/OSF materials/SPSP Poster 2022/data/df_s5.csv")
+
+df_s6 <- read.csv("~/Google Drive/My Drive/taboo transactions/OSF materials/SPSP Poster 2022/data/df_s6.csv")
+```
+
+# All studies
+
+## Combine s1-s4
+
+```{r,include=FALSE}
+df_ready_s1 <- df_s1 %>% 
+  select(IV_taboo,personAbenefits:personBbenefits,gender,race,income,edu) %>% 
+  rename(transaction = IV_taboo,
+         benefits_A = personAbenefits,
+         benefits_B = personBbenefits) %>% 
+  mutate(transaction = ifelse(transaction == 1,"taboo","non-taboo"),
+         study = "Study 1")
+
+df_ready_s2 <- df_s2 %>% 
+  select(cond,personAbenefits_taboo:personBbenefits_nonTaboo,gender,race,income,edu) %>% 
+  mutate(transaction = ifelse(cond == 1,"taboo","non-taboo"),
+         benefits_A = ifelse(transaction == "taboo",personAbenefits_taboo,personAbenefits_nonTaboo),
+         benefits_B = ifelse(transaction == "taboo",personBbenefits_taboo,personBbenefits_nonTaboo)) %>% 
+  select(transaction:benefits_B,gender,race,income,edu) %>% 
+  mutate(study = "Study 2")
+
+df_ready_s3 <- df_s3 %>% 
+  select(IV2_taboo,kdny_benefit_A:car_benefit_B,gender,race,income,edu) %>% 
+  mutate(benefits_A = ifelse(IV2_taboo == 1,kdny_benefit_A,car_benefit_A),
+         benefits_B = ifelse(IV2_taboo == 1,kdny_benefit_B,car_benefit_B),
+         transaction = ifelse(IV2_taboo == 1,"taboo","non-taboo")) %>% 
+  select(transaction,benefits_A,benefits_B,gender,race,income,edu) %>% 
+  mutate(study = "Study 3")
+
+df_ready_s4 <- df_s4 %>% 
+  select(cond,benefit_A,benefit_B,gender,race,income,edu) %>% 
+  rename(transaction = cond,
+         benefits_A = benefit_A,
+         benefits_B = benefit_B) %>% 
+  mutate(study = "Study 4")
+
+df_ready_s5 <- df_s5 %>% 
+  select(benefit_A,benefit_B,gender,race,income,edu) %>% 
+  mutate(transaction = "taboo",
+         study = "Study 5") %>% 
+  rename(benefits_A = benefit_A,
+         benefits_B = benefit_B) %>% 
+  select(transaction,benefits_A,benefits_B,gender,race,income,edu,study)
+
+df_ready_s6 <- df_s6 %>% 
+  select(gender,race,income,edu) %>% 
+  mutate(transaction = "taboo",
+         study = "Study 6") %>% 
+  select(transaction,gender,race,income,edu,study)
+
+#combine
+df_combined <- df_ready_s1 %>% 
+  bind_rows(df_ready_s2) %>% 
+  bind_rows(df_ready_s3) %>% 
+  bind_rows(df_ready_s4) %>% 
+  bind_rows(df_ready_s5) %>% 
+  bind_rows(df_ready_s6) %>% 
+  mutate(study = as.factor(study),
+         PID = row_number()) %>% 
+  pivot_longer(benefits_A:benefits_B,
+               names_to = "person",
+               values_to = "benefit") %>% 
+  separate(person,into = c("temp","person"),sep = "_") %>% 
+  mutate(person = ifelse(study == "Study 6",NA,person)) %>% 
+  mutate(Party = ifelse(person == "A","Buyer",
+                        ifelse(person == "B","Seller",NA))) %>% 
+  select(study,PID,transaction,Party,benefit,gender,race,income,edu)
+
+```
+
+## reshape s6
+
+```{r,include=FALSE}
+df_s6_long <- df_s6 %>% 
+  pivot_longer(personA_short:personB_long,
+               names_to = "temp",
+               values_to = "benefit")  %>% 
+  separate(temp,
+           sep = "_",
+           into = c("person","distance")) %>% 
+  separate(person,into = c("temp","person"),sep = "n") %>% 
+  select(-temp) %>% 
+  mutate(person = ifelse(person == "A","Buyer","Seller"))
+```
+
+## Demographics
+
+### N
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+df_combined %>% 
+  group_by(PID) %>% 
+  slice(1) %>% 
+  group_by(study) %>% 
+  summarise(n = n()) %>% 
+  kableExtra::kable()
+```
+
+### Gender
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+df_combined %>% 
+  group_by(PID) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  group_by(study,gender) %>% 
+  summarise(n = n()) %>% 
+  group_by(study) %>% 
+  mutate(perc = 100*round(n/sum(n),4)) %>% 
+  ungroup() %>% 
+  mutate(gender = replace_na(gender,"other")) %>% 
+  kableExtra::kable()
+```
+
+### Race
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+df_combined %>% 
+  group_by(PID) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  group_by(study,race) %>% 
+  summarise(n = n()) %>% 
+  group_by(study) %>% 
+  mutate(perc = 100*round(n/sum(n),4)) %>% 
+  ungroup() %>% 
+  mutate(race = replace_na(race,"other")) %>% 
+  kableExtra::kable()
+```
+
+### Education
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+df_combined %>% 
+  mutate(edu = factor(edu,c("GED",
+                            "2yearColl",
+                            "4yearColl",
+                            "MA",
+                            "PHD"))) %>% 
+  group_by(PID) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  group_by(study,edu) %>% 
+  summarise(n = n()) %>% 
+  group_by(study) %>% 
+  mutate(perc = 100*round(n/sum(n),4)) %>% 
+  ungroup() %>% 
+  filter(!is.na(edu)) %>% 
+  kableExtra::kable()
+```
+
+### Income
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+df_combined %>% 
+  mutate(income = factor(income,c("$0-$20,000",
+                                  "$20,001-$40,000",
+                                  "$40,001-$60,000",
+                                  "$60,001-$80,000",
+                                  "$80,001-$100,000",
+                                  "$100,001-$120,000",
+                                  "$120,001-$140,000",
+                                  "$140,001-$160,000",
+                                  "$160,001-$180,000",
+                                  "$180,001-$200,000",
+                                  "Over $200,000"))) %>% 
+  group_by(PID) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  filter(!is.na(income)) %>% 
+  ggplot(aes(x = income)) +
+  geom_bar() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        axis.ticks = element_blank(),
+        axis.line = element_line(color = "grey66"),
+        axis.text.y = element_text(color = "black"),
+        axis.text.x = element_text(color = "black",
+                                   face = "bold",
+                                   angle = 320),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  facet_wrap(~study,nrow = 2)
+```
+
+# Main effect: Taboo vs. Non-Taboo Transactions
+
+## Descriptives
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+df_combined %>% 
+  filter(study != "Study 5" & study != "Study 6") %>% 
+  group_by(study,transaction,Party) %>% 
+  summarise(M = mean(benefit),
+            SD = sd(benefit)) %>% 
+  kableExtra::kable()
+```
+
+## Stats
+
+### Study 1. Two-way Repeated Measures ANOVA
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+forModel_s1 <- df_combined %>% 
+  filter(study == "Study 1")
+
+m1 <- anova_test(
+  data = forModel_s1, dv = benefit, wid = PID,
+  within = Party,
+  between = transaction
+  )
+
+get_anova_table(m1) %>% 
+  kableExtra::kable()
+```
+
+### Study 1. Post-hoc comparisons: Party
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+m1a <- forModel_s1 %>%
+  group_by(Party) %>%
+  anova_test(dv = benefit, wid = PID, between = transaction) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni")
+
+m1a %>% 
+  kableExtra::kable()
+```
+
+### Study 1. Post-hoc comparisons: Transaction
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+m1b <- forModel_s1 %>%
+  group_by(transaction) %>%
+  anova_test(dv = benefit, wid = PID, within = Party) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni")
+
+m1b %>% 
+  kableExtra::kable()
+```
+
+### Study 2. Two-way Repeated Measures ANOVA
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+forModel_s2 <- df_combined %>% 
+  filter(study == "Study 2")
+
+m2 <- anova_test(
+  data = forModel_s2, dv = benefit, wid = PID,
+  within = Party,
+  between = transaction
+  )
+
+get_anova_table(m2) %>% 
+  kableExtra::kable()
+```
+
+### Study 2. Post-hoc comparisons: Party
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+m2a <- forModel_s2 %>%
+  group_by(Party) %>%
+  anova_test(dv = benefit, wid = PID, between = transaction) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni")
+
+m2a %>% 
+  kableExtra::kable()
+```
+
+### Study 2. Post-hoc comparisons: Transaction
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+m2b <- forModel_s2 %>%
+  group_by(transaction) %>%
+  anova_test(dv = benefit, wid = PID, within = Party) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni")
+
+m2b %>% 
+  kableExtra::kable()
+```
+
+### Study 3. Two-way Repeated Measures ANOVA
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+forModel_s3 <- df_combined %>% 
+  filter(study == "Study 3")
+
+m3 <- anova_test(
+  data = forModel_s3, dv = benefit, wid = PID,
+  within = Party,
+  between = transaction
+  )
+
+get_anova_table(m3) %>% 
+  kableExtra::kable()
+```
+
+### Study 3. Post-hoc comparisons: Party
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+m3a <- forModel_s3 %>%
+  group_by(Party) %>%
+  anova_test(dv = benefit, wid = PID, between = transaction) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni")
+
+m3a %>% 
+  kableExtra::kable()
+```
+
+### Study 3. Post-hoc comparisons: Transaction
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+m3b <- forModel_s3 %>%
+  group_by(transaction) %>%
+  anova_test(dv = benefit, wid = PID, within = Party) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni")
+
+m3b %>% 
+  kableExtra::kable()
+```
+
+### Study 4. Two-way Repeated Measures ANOVA
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+forModel_s4 <- df_combined %>% 
+  filter(study == "Study 4")
+
+m4 <- anova_test(
+  data = forModel_s4, dv = benefit, wid = PID,
+  within = Party,
+  between = transaction
+  )
+
+get_anova_table(m4) %>% 
+  kableExtra::kable()
+```
+
+### Study 4. Post-hoc comparisons: Party
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+m4a <- forModel_s4 %>%
+  group_by(Party) %>%
+  anova_test(dv = benefit, wid = PID, between = transaction) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni")
+
+m4a %>% 
+  kableExtra::kable()
+```
+
+### Study 4. Post-hoc comparisons: Transaction
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+m4b <- forModel_s4 %>%
+  group_by(transaction) %>%
+  anova_test(dv = benefit, wid = PID, within = Party) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni")
+
+m4b %>% 
+  kableExtra::kable()
+```
+
+## Plot
+
+This spits out a plot. See Figure 1 in Output folder
+
+```{r,eval=FALSE,echo=FALSE}
+png("figure1.png", width = 1800, height = 1500, bg = "transparent")
+df_combined %>% 
+  ggplot(aes(x = transaction,y = benefit,color = Party,fill = Party)) +
+  scale_color_manual(values = c("#1C7EB5",
+                                "#203864")) +
+  scale_fill_manual(values = c("#1C7EB5",
+                                "#203864")) +
+  geom_violinhalf(position = position_nudge(0.15),
+                  #fill = "gray23",
+                  alpha = 0.4,
+                  size = 1.2) +
+  geom_jitter(alpha = 0.6,
+             size = 2,
+             position = position_jitter(0.15)) +
+  stat_summary(fun.data = "mean_cl_boot",
+               size = 2,
+               geom = "errorbar",
+               color = "#080807",
+               position = position_dodge(width = 0.3),
+               width = 0.2,
+               alpha = 0.8) +
+  stat_summary(fun = "mean",
+               geom = "point",
+               size = 8,
+               position = position_dodge(width = 0.3)) +
+  stat_summary(fun = "mean",
+               shape = 1,
+               geom = "point",
+               size = 8,
+               position = position_dodge(width = 0.3),
+               color = "black") +
+  scale_x_discrete(labels = c("taboo" = "Taboo",
+                              "non-taboo" = "Non-Taboo"),
+                   expand = c(0.2,.3)) +
+  scale_y_continuous(limits = c(-3,3),
+                     breaks = seq(-3,3,1)) +
+  expand_limits(x = 2.7) +
+  theme(panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", color = NA),
+        legend.background = element_rect(fill = "transparent"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.line = element_line(color = "grey66"),
+        axis.text.y = element_text(color = "black",
+                                   size = 46),
+        axis.text.x = element_text(color = "black",
+                                   face = "bold",
+                                   size = 46),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(color = "black",
+                                   face = "bold",
+                                   size = 60),
+        plot.title = element_text(color = "black",
+                                  size = 60,
+                                  face = "bold",
+                                  hjust = 0.54),
+        legend.title = element_text(size = 60,
+                                    color = "black",
+                                    face = "bold"),
+        legend.text = element_text(size = 50),
+        legend.position = "bottom",
+        legend.key.size = unit(2,'cm')
+        ) +
+  facet_wrap(~study,nrow = 2) +
+  theme(strip.text = element_text(size = 60,
+                                  color = "#F2F2F2",
+                                  face = "bold"),
+        strip.background = element_rect(fill = "black"))
+```
+
+# Short or long term benefit?
+
+## Descriptives
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+df_s6_long %>% 
+  group_by(person,distance) %>% 
+  summarise(M = mean(benefit),
+            SD = sd(benefit)) %>% 
+  kableExtra::kable()
+```
+
+## Stats
+
+### Two-way Repeated Measures ANOVA
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+m5 <- anova_test(
+  data = df_s6_long, dv = benefit, wid = PID,
+  within = c(person,distance)
+  )
+
+get_anova_table(m5) %>% 
+  kableExtra::kable()
+```
+
+### Post-hoc comparisons: Person
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+m5a <- df_s6_long %>%
+  group_by(person) %>%
+  anova_test(dv = benefit, wid = PID, within = distance) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni")
+
+m5a %>% 
+  kableExtra::kable()
+```
+
+### Post-hoc comparisons: Distance
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+m5b <- df_s6_long %>%
+  group_by(distance) %>%
+  anova_test(dv = benefit, wid = PID, within = person) %>%
+  get_anova_table() %>%
+  adjust_pvalue(method = "bonferroni")
+
+m5b %>% 
+  kableExtra::kable()
+```
+
+### Pairwise comparisons: Person
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+pwc_a <- df_s6_long %>%
+  group_by(person) %>%
+  pairwise_t_test(
+    benefit ~ distance, paired = TRUE,
+    p.adjust.method = "bonferroni"
+    )
+
+pwc_a %>% 
+  kableExtra::kable()
+```
+
+### Pairwise comparisons: Distance
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+pwc_b <- df_s6_long %>%
+  group_by(distance) %>%
+  pairwise_t_test(
+    benefit ~ person, paired = TRUE,
+    p.adjust.method = "bonferroni"
+    )
+
+pwc_b %>% 
+  kableExtra::kable()
+```
+
+## Plot
+
+This spits out a plot. See Figure 2 in Output folder
+
+```{r,eval=FALSE,echo=FALSE}
+
+png("figure2.png", width = 1100, height = 750, bg = "transparent")
+df_s6_long %>% 
+  ggplot(aes(x = person,y = benefit,color = distance,fill = distance)) +
+  scale_color_manual(values = c("#1C7EB5",
+                                "#203864"),
+                     labels = c("Long Term",
+                                "Short Term")) +
+  scale_fill_manual(values = c("#1C7EB5",
+                                "#203864"),
+                     labels = c("Long Term",
+                                "Short Term")) +
+  geom_violinhalf(position = position_nudge(0.15),
+                  #fill = "gray23",
+                  alpha = 0.4,
+                  size = 1.2) +
+  geom_jitter(alpha = 0.6,
+             size = 2,
+             position = position_jitter(0.15)) +
+  stat_summary(fun.data = "mean_cl_boot",
+               size = 2,
+               geom = "errorbar",
+               color = "#080807",
+               position = position_dodge(width = 0.3),
+               width = 0.2,
+               alpha = 0.8) +
+  stat_summary(fun = "mean",
+               geom = "point",
+               size = 8,
+               position = position_dodge(width = 0.3)) +
+  stat_summary(fun = "mean",
+               shape = 1,
+               geom = "point",
+               size = 8,
+               position = position_dodge(width = 0.3),
+               color = "black") +
+  scale_x_discrete(labels = c("A" = "Buyer",
+                              "B" = "Seller"),
+                   expand = c(0.2,.3)) +
+  scale_y_continuous(limits = c(-3,3),
+                     breaks = seq(-3,3,1)) +
+  expand_limits(x = 2.7) +
+  theme(panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", color = NA),
+        legend.background = element_rect(fill = "transparent"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.line = element_line(color = "grey66"),
+        axis.text.y = element_text(color = "black",
+                                   size = 46),
+        axis.text.x = element_text(color = "black",
+                                   face = "bold",
+                                   size = 46),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(color = "black",
+                                   face = "bold",
+                                   size = 60),
+        plot.title = element_text(color = "black",
+                                  size = 60,
+                                  face = "bold",
+                                  hjust = 0.54),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 40),
+        legend.position = "right",
+        legend.key.size = unit(2,'cm')
+        )
+```
+
+# Intuitions about the seller
+
+## Descriptives
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+df_s4 %>% 
+  pivot_longer(int_choice:int_ratio,
+               names_to = "int",
+               values_to = "value") %>% 
+  group_by(cond,int) %>% 
+  summarise(M = mean(value),
+            SD = sd(value)) %>% 
+  kableExtra::kable()
+```
+
+## Stats
+
+### Intuition about seller: Choice
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+t_apa(t_test(int_choice ~ cond,df_s4),
+      es = "cohens_d",
+      es_ci = TRUE)
+```
+
+### Intuition about seller: Fully informed
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+t_apa(t_test(int_know ~ cond,df_s4),
+      es = "cohens_d",
+      es_ci = TRUE)
+```
+
+### Intuition about seller: Rational actor
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+t_apa(t_test(int_ratio ~ cond,df_s4),
+      es = "cohens_d",
+      es_ci = TRUE)
+```
+
+### Seller benefit as a function of perceived degree to which they have free choice
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+m6 <- lm(benefit_B ~ cond*int_choice,df_s4)
+
+apa_lm6 <- apa_print(m6)
+apa_table(
+  apa_lm6$table,
+  caption = "Choice and condition predicting seller benefit",
+  placement = "h",
+  align = c("l","c","c","c","c")
+)
+```
+
+### Seller benefit as a function of perceived degree to which they are informed
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+m7 <- lm(benefit_B ~ cond*int_know,df_s4)
+
+apa_lm7 <- apa_print(m7)
+apa_table(
+  apa_lm7$table,
+  caption = "Informed and condition predicting seller benefit",
+  placement = "h",
+  align = c("l","c","c","c","c")
+)
+```
+
+### Seller benefit as a function of perceived degree to which they are rational actors
+
+```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+m8 <- lm(benefit_B ~ cond*int_know,df_s4)
+
+apa_lm8 <- apa_print(m8)
+apa_table(
+  apa_lm8$table,
+  caption = "Rational and condition predicting seller benefit",
+  placement = "h",
+  align = c("l","c","c","c","c")
+)
+```
+
+## Plots
+
+This spits out two plots. See Figures 3 and 4 in Output folder
+
+```{r,eval=F,echo=F}
+png("figure3.png", width = 1800, height = 600, bg = "transparent")
+df_s4 %>% 
+  pivot_longer(c(int_choice,int_ratio,int_know),
+               names_to = "int",
+               values_to = "value") %>% 
+  mutate(int = ifelse(int == "int_choice","Free Choice",
+                      ifelse(int == "int_know","Fully Informed",
+                             ifelse(int == "int_ratio","Rational Actor",NA)))) %>% 
+  ggplot(aes(x = cond,y = value,color = cond,fill = cond)) +
+  scale_color_manual(values = c("#1C7EB5",
+                                "#203864")) +
+  scale_fill_manual(values = c("#1C7EB5",
+                                "#203864")) +
+  geom_violinhalf(position = position_nudge(0.15),
+                  #fill = "gray23",
+                  alpha = 0.4,
+                  size = 1.2) +
+  geom_jitter(alpha = 0.6,
+             size = 2,
+             position = position_jitter(0.15)) +
+  stat_summary(fun.data = "mean_cl_boot",
+               size = 2,
+               geom = "errorbar",
+               color = "#080807",
+               position = position_dodge(width = 0.3),
+               width = 0.2,
+               alpha = 0.8) +
+  stat_summary(fun = "mean",
+               geom = "point",
+               size = 8,
+               position = position_dodge(width = 0.3)) +
+  stat_summary(fun = "mean",
+               shape = 1,
+               geom = "point",
+               size = 8,
+               position = position_dodge(width = 0.3),
+               color = "black") +
+  scale_x_discrete(labels = c("taboo" = "Taboo",
+                              "non-taboo" = "Non-Taboo"),
+                   expand = c(0.2,.3)) +
+  scale_y_continuous(limits = c(1,7),
+                     breaks = seq(1,7,1)) +
+  expand_limits(x = 2.7) +
+  theme(panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", color = NA),
+        legend.background = element_rect(fill = "transparent"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.line = element_line(color = "grey66"),
+        axis.text.y = element_text(color = "black",
+                                   size = 46),
+        axis.text.x = element_text(color = "black",
+                                   face = "bold",
+                                   size = 46),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        plot.title = element_text(color = "black",
+                                  size = 60,
+                                  face = "bold",
+                                  hjust = 0.54),
+        legend.position = "none") +
+  facet_wrap(~int,nrow = 1) +
+  theme(strip.text = element_text(size = 60,
+                                  color = "#F2F2F2",
+                                  face = "bold"),
+        strip.background = element_rect(fill = "black"))
+  
+```
+
+
+```{r,eval=F,echo=F}
+png("figure4.png", width = 1800, height = 550, bg = "transparent")
+df_s4 %>% 
+  pivot_longer(c(int_choice,int_ratio,int_know),
+               names_to = "int",
+               values_to = "value") %>% 
+  mutate(int = ifelse(int == "int_choice","Free Choice",
+                      ifelse(int == "int_know","Fully Informed",
+                             ifelse(int == "int_ratio","Rational Actor",NA)))) %>% 
+  ggplot(aes(x = value,y = benefit_B,color = cond)) +
+  scale_color_manual(values = c("#1C7EB5",
+                                "#203864"),
+                     labels = c("Taboo",
+                                "Non-Taboo")) +
+  geom_point(size = 2,
+             alpha = 0.6) +
+  geom_smooth(method = "lm",
+              size = 3) +
+  scale_y_continuous(limits = c(-3,3),
+                     breaks = seq(-3,3,1)) + 
+  scale_x_continuous(limits = c(1,7),
+                     breaks = seq(1,7,1)) +
+  ylab("Seller Benefit") +
+  theme(panel.background = element_rect(fill = "transparent"),
+        plot.background = element_rect(fill = "transparent", color = NA),
+        legend.background = element_rect(fill = "transparent"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.ticks = element_blank(),
+        axis.line = element_line(color = "grey66"),
+        axis.text.y = element_text(color = "black",
+                                   size = 46),
+        axis.text.x = element_text(color = "black",
+                                   face = "bold",
+                                   size = 46),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(color = "black",
+                                   face = "bold",
+                                   size = 40),
+        plot.title = element_text(color = "black",
+                                  size = 60,
+                                  face = "bold",
+                                  hjust = 0.54),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 50),
+        legend.position = "bottom",
+        legend.key.size = unit(2,'cm')
+        ) +
+  facet_wrap(~int,nrow = 1) +
+  theme(strip.text = element_text(size = 60,
+                                  color = "#F2F2F2",
+                                  face = "bold"),
+        strip.background = element_rect(fill = "black"))
+  
+  
+```
+
+# Regulation support
+
+## Mediation model
+
+```{r,echo = F}
+forMediation <- df_s4 %>% 
+  mutate(condition = ifelse(cond == "taboo",0,1)) %>% 
+  rowwise() %>% 
+  mutate(regulation = mean(c(reg_buy,
+                             reg_sell))) %>% 
+  ungroup() %>% 
+  mutate(benefit_B_z = scale(benefit_B),
+         regulation_z = scale(regulation))
+
+summary(mediate(regulation_z ~ condition + (benefit_B_z),data = forMediation))
+```
+
