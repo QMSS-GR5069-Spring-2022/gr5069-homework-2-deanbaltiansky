@@ -87,7 +87,7 @@ df_ready_s6 <- df_s6 %>%
          study = "Study 6") %>% 
   select(transaction,gender,race,income,edu,study)
 
-#combine
+#combine the datasets and replaced NA values
 df_combined <- df_ready_s1 %>% 
   bind_rows(df_ready_s2) %>% 
   bind_rows(df_ready_s3) %>% 
