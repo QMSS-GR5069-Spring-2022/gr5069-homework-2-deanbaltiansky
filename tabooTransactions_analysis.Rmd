@@ -41,6 +41,7 @@ df_s6 <- read.csv("~/Google Drive/My Drive/taboo transactions/OSF materials/SPSP
 ## Combine s1-s4
 
 ```{r,include=FALSE}
+# Modification of originial datasets to select columns of interests
 df_ready_s1 <- df_s1 %>% 
   select(IV_taboo,personAbenefits:personBbenefits,gender,race,income,edu) %>% 
   rename(transaction = IV_taboo,
