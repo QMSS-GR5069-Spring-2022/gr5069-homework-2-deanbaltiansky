@@ -22,6 +22,7 @@ if(!require(apaTables)) install.packages("apaTables"); require(apaTables)
 if(!require(papaja)) install.packages("papaja"); require(papaja)
 if(!require(tidyverse)) install.packages("tidyverse"); require(tidyverse)
 
+# import datasets
 df_s1 <- read.csv("~/Google Drive/My Drive/taboo transactions/OSF materials/SPSP Poster 2022/data/df_s1.csv")
 
 df_s2 <- read.csv("~/Google Drive/My Drive/taboo transactions/OSF materials/SPSP Poster 2022/data/df_s2.csv")
