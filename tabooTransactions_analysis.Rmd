@@ -137,6 +137,7 @@ df_s6_long <- df_s6 %>%
 ### N
 
 ```{r,results='asis',echo=FALSE,warning=FALSE,message=FALSE}
+# N represents the total number of population as required.
 df_combined %>% 
   group_by(PID) %>% 
   slice(1) %>% 
