@@ -305,6 +305,7 @@ m2 <- anova_test(
 get_anova_table(m2) %>% 
   kableExtra::kable()
 ```
+The results table shown above indicated that ___________
 
 ### Study 2. Post-hoc comparisons: Party
 
